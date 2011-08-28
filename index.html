@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+ 
+<html>
+<head>
+    <title>HeadHunters</title>
+    <meta charset="utf-8">
+    
+    <style>
+        #wrapper{
+            height: 600px;
+            width:800px;
+            position:absolute;
+        }
+    
+        #myCanvas{
+            background: transparent url(back.jpg) no-repeat scroll 0 0;
+            position: relative;
+        }
+        
+        #floorCanvas{
+            background: transparent url(floor.png) no-repeat scroll 0 0;
+            position:relative;
+            top:-25px;
+        }
+    </style>
+    
+</head>
+ 
+<body>
+    <div id="wrapper">
+        <div id="menu"></div>
+        <canvas id="myCanvas" width="800" height="600"></canvas>
+        <canvas id="floorCanvas" width="800" height="20"></canvas>
+    
+<script>
+    Array.prototype.i = Array.prototype.indexOf ||
+    function(value){
+        for (var i = this.length; i-- && this[i]!== value;) {}
+        return i;
+    };
+
+    var rm = function(value, array) {
+        if (array.i(value)!==-1) {
+            array.splice(array.i(value), 1);
+            return true;
+        } else {
+            return false;
+        }
+    };
+</script>
+
+<script>
+////////////////////////////////////////            SPRITE              ///////////////////////////////////////////////
+    //collisions    
+    var addBoundingBoxes = function(){
+        var g = game.sprites,
+            loopIndex = g.length,
+            len, p1, p1Top, p1Bottom, p1Left, p1Right;
+        
+        while(loopIndex--){
+            p1 = game.sprites[loopIndex];
+            
+            p1Top = p1.posY + p1.cZ.t;
+            p1Bottom = p1.posY + p1.height - p1.cZ.b;
+            p1Left = p1.posX + p1.cZ.l;
+            p1Right = p1.posX + p1.width - p1.cZ.r;
+            
+            /*
+            ctx.beginPath();
+            ctx.strokeStyle = 'white';
+            ctx.moveTo(p1Right, p1Top);            
+            ctx.lineTo(p1Right, p1Bottom);
+            ctx.lineTo(p1Left, p1Bottom);
+            ctx.lineTo(p1Left, p1Top);
+            ctx.lineTo(p1Right, p1Top);
+            ctx.stroke();
+            ctx.closePath();
+            */
+        }    
+    };
+    
+    var checkCollides = function() {
+        var loopIndex = game.collides.length, 
+            element,
+            p1, p2,
+            p1Top, p1Bottom, p1Left, p1Right,
+            p2Top, p2Bottom, p2Left, p2Right;
+        
+        while(loopIndex--) {
+            p1 = game.collides[loopIndex];
+            p1Top = p1.posY + p1.cZ.t;
+            p1Bottom = p1.posY + p1.height - p1.cZ.b;
+            p1Left = p1.posX + p1.cZ.l;
+            p1Right = p1.posX + p1.width - p1.cZ.r;
+
+            for(element in game.collides[loopIndex].hits){
+                p2 = game.fixedIndexColl[element];
+                p2Top = p2.posY + p2.cZ.t;
+                p2Bottom = p2.posY + p2.height - p2.cZ.b;
+                p2Left = p2.posX + p2.cZ.l;
+                p2Right = p2.posX + p2.width - p2.cZ.r;
+
+                ctx.beginPath();
+                ctx.strokeStyle = 'white';
+                ctx.moveTo(p1Right, p1Top);            
+                ctx.lineTo(p1Right, p1Bottom);
+                ctx.lineTo(p1Left, p1Bottom);
+                ctx.lineTo(p1Left, p1Top);
+                ctx.lineTo(p1Right, p1Top);
+                ctx.stroke();
+                ctx.closePath();                
+                ctx.beginPath();
+                ctx.strokeStyle = 'red';            
+                ctx.moveTo(p2Right, p2Top);
+                ctx.lineTo(p2Right, p2Bottom);
+                ctx.lineTo(p2Left, p2Bottom);
+                ctx.lineTo(p2Left, p2Top);
+                ctx.lineTo(p2Right, p2Top);
+                ctx.stroke();
+                ctx.closePath();
+
+                if(!(
+                    (p1Top     > p2Bottom) ||
+                    (p1Bottom  < p2Top)    ||
+                    (p1Left    > p2Right)  ||
+                    (p1Right   < p2Left)
+                )){
+                    game.collides[loopIndex].hits[element]();
+                }               
+            }
+        }
+    };
+    
+    var Sprite = function(_image, _width, _height, _frames, _animations){       
+        var draw = function(){
+            try {
+                ctx.drawImage(t.image, t.iWidth * t.animation, t.iHeight * t.f, t.iWidth, t.iHeight, t.posX, t.posY, t.width, t.height);
+                } catch(e) {}
+        };
+        
+        var t = {};
+        t.id = game.sprites.length;      
+        t.image = new Image();
+        t.image.src = _image;
+    
+        t.speed = 0;
+        t.width =  _width;
+        t.iWidth = _width;
+        t.height = _height;
+        t.iHeight = _height;
+        t.fs = _frames;
+        t.animations = _animations;
+
+        t.collides = false;
+        t.hits = {};
+                
+        t.f = 0;
+        t.animation = 0;
+        t.interval = 0;       
+        t.posX = 0;
+        t.posY = 0;       
+        //t.zOrder = 1;          
+        t.callback = null;
+        t.callIters=0;
+        t.callMaxIters=0;         
+        t.cZ = {
+            t:0,
+            l:0,
+            b:0,
+            r:0
+        }
+        t.id = game.sprites.push(t)-1;
+        game.fixedIndexColl.push(t);
+
+        t.draw = function() {
+            if (t.fs > 0) {
+                if (t.interval == t.speed && t.speed !== 0) {
+                    if (t.f == t.fs) {
+                        t.f = 0;
+                        if (typeof t.callback === "function") {
+                            t.callIters++;
+                            if (t.callIters === t.callMaxIters) {
+                                t.callback();
+                                t.callIters = 0;    
+                            }
+                        }
+                    }
+                    else {
+                        t.f++;
+                    }
+                    t.interval = 0;
+                }
+                if (t.speed !== 0) {
+                    t.interval++;
+                }   
+            }
+            draw();
+        };
+        
+        var setPosition = function(x, y, z) {
+            if (x !== undefined) {
+                t.posX = x || t.posX;
+                t.posY = y || t.posY;
+/*
+                t.zOrder = z || t.zOrder;
+                
+                if(z){
+                        MB_elements.sort(function(a, b){
+                            return b.zOrder - a.zOrder;
+                        }                    
+                    );
+                }
+*/
+                return this;
+            } else {
+                return {x:t.posX, y:t.posY, z:t.zOrder}
+            }
+        },
+        setCollide = function(e) {
+            if (e && game.collides.i(t) === -1) {
+                game.collides.push(t);
+            } else if (!e && game.collides.i(t) !== -1){
+                rm(t, game.collides);
+            }
+        },
+        
+        onHit = function (object, callback) {
+            setCollide(true);
+            t.hits[object.id()] = callback;
+            if (game.collides.i(t) === -1) {
+                game.collides.push(t);
+            }
+            return this;
+        },        
+        reSize = function(w, h){
+            if (w !== undefined) {
+                t.width = w;
+                t.height = h;
+                
+                return this;
+                
+            } else {   
+                return {width:t.width,height:t.height};
+            }
+        };            
+
+        return {
+            'position': setPosition,
+            'hit':onHit,
+            'zone': function(top, right, bottom, left) {
+                if (top !== undefined) {
+                    t.cZ.l = left;
+                    t.cZ.t = top;
+                    t.cZ.r = right;
+                    t.cZ.b = bottom;                   
+                    
+                    return this;
+                } else {
+                    return t.cZ;
+                }
+            },
+            'noHits':function() {
+                t.hits = {};
+                return this;
+            },
+            'callback':function(fn, iteration) {
+                t.callback = fn;
+                t.callMaxIters = iteration;
+                return this;
+            },
+            'change': function(image, width, height, frames, animation) {
+                t.image.src = image;
+                t.width = width;
+                t.height = height;
+                t.iWidth = width;
+                t.iHeight = height;
+                t.fs = frames;
+                t.animation = animation;
+                t.interval = 0;
+                t.f = 0;
+                t.callback = null;
+                t.callIters=0;
+                t.callMaxIters=0;
+                
+                t.cZ = {
+                    t: 0,
+                    l: 0,
+                    b: 0,
+                    r: 0
+                }
+                return this;
+            },              
+            'size':reSize,
+            'speed':function(e) {
+                if (e !== undefined){ 
+                    t.speed=e;
+                    //t.interval=0;                     
+                    return this;
+                } else {
+                    return t.speed;
+                }
+            },
+            'animation':function(e) {
+                if (e !== undefined) {               
+                    t.animation=e;                    
+                    return this;
+                } else {
+                    return t.animation;
+                }
+            },
+            'frame':function(e) {
+                if (e !== undefined) {
+                    t.f=e;
+                    return this;
+                } else {
+                    return t.f;
+                }
+            },
+            'id': function() { return t.id; }
+        };
+    };
+</script>
+
+<script>
+////////////////////////////////////////////////        PLAYER        //////////////////////////////////////////////////////
+    var checkKill = function(){
+        console.info(arguments, this);
+    };
+
+    var Player = function(sprite, name){
+        var that = this;
+        that.sprite = sprite;
+        that.name = name;
+        that.left = 0;
+        that.right = 0;
+        that.top = 0;
+        that.jumping = false;
+        that.canJump = true;
+        
+        that.moveLeft = function(){
+            that.sprite.animation(0);
+            var position = that.sprite.position().x;
+            that.sprite.position(position-that.left);
+        };
+        
+        that.moveRight = function(){
+            that.sprite.animation(1);
+            var position = that.sprite.position().x;
+            that.sprite.position(position+that.right);
+        };
+        
+        that.jump = function(){
+            var position = that.sprite.position();
+            if(that.jumping){
+                that.sprite.position(position.x, position.y-that.top);
+            }
+        }
+        
+        that.fall = function(){
+            var position = that.sprite.position(),
+            floor = game.floor,
+            height = that.sprite.size().height,
+            finalPos = position.y + height + that.top,
+            difference = floor - height;
+            
+            if(finalPos > floor){
+                that.canJump = true;
+                that.top = 0;
+                that.sprite.position(position.x, difference);
+            }
+            else{
+                that.sprite.position(position.x, position.y+height+that.top);
+            }
+        }
+        
+        return this;
+    };
+</script>
+
+<script>
+/////////////////////////////////////////////////          PLATFORMA            ///////////////////////////////////////////////
+    var Platform = function(sprite){
+        var that = this;
+        that.sprite = sprite;        
+    };
+</script>
+
+<script>
+/////////////////////////////////////////////////           BOX            ///////////////////////////////////////////////
+    var Box = function(sprite){
+        var that = this;
+        that.sprite = sprite;        
+    };
+</script>
+
+<script>
+/////////////////////////////////////////////////           TRAMPOLINE            ///////////////////////////////////////////////
+    var Trampoline = function(sprite, power){
+        var that = this;
+        that.sprite = sprite;
+        that.power = power;        
+    };
+</script>
+    
+<script type="text/javascript">       
+    var canvas = document.getElementById("myCanvas"),
+    ctx = canvas.getContext("2d");
+
+    var mainloop = function() {
+        if(game.start){
+            initGame();
+        }
+        drawGame();
+    };
+
+    var game = {
+        start: 1,
+        sprites: [],
+        platforms: [],
+        boxes: [],
+        trampolines: [],
+        players: [],
+        player: null,
+        collides: [],
+        fixedIndexColl: [],
+        floor: canvas.height - 20,
+        canvas: {
+            width: canvas.width,
+            height: canvas.height
+        }
+    };
+
+    var clearCanvas = function(){
+        ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+    };
+    
+    var drawAll = function(){
+        for(var i=0, l=game.sprites.length; i<l; i+=1){
+            game.sprites[i].draw();
+        }
+    };
+    
+    var cleanupPlayer = function(sprite){
+        //wyjebac sprajta po jakims czasie i po kolejnym timeoucie pokazac go w innym miejscu
+    };
+    
+    var respawnPlayer = function(){
+    };
+    
+    var checkMove = function(){
+        if(game.player.right || game.player.left){
+            if(!game.player.sprite.speed()){
+                game.player.sprite.speed(2);
+            }                
+            if(game.player.left){
+                game.player.moveLeft();
+            }
+            else{
+                game.player.moveRight();
+            } 
+        }
+        if(game.player.jumping){
+            if(game.player.top){
+                game.player.jump();
+                game.player.top -= 1;
+            }
+            else{
+                game.player.jumping = false;
+            }
+        }
+        else{
+            if(!game.player.canJump){
+                game.player.fall();
+                game.player.top += 1;
+            }
+            else{
+                game.player.canJump = true;
+            }            
+        }
+    }
+    
+    var drawGame = function(){           
+        clearCanvas();
+        checkMove();
+        addBoundingBoxes();       
+        checkCollides();
+        drawAll();
+    };
+    
+    var initGame = function(){
+        var s = new Sprite('player1.png', 22, 45, 1, 0);
+        var p = new Player(s, 'Anonymous');
+        
+        var s2 = new Sprite('player2.png', 23, 45, 2, 0);
+        var p2 = new Player(s2, 'Anonymous2');
+        game.players.push(p2);
+        game.players[0].sprite.position(20, 535)
+        
+        var sp1 = new Sprite('platform.png', 120, 20, 0, 0);
+        var sp2 = new Sprite('platform.png', 120, 20, 0, 0);
+        var plat1 = new Platform(sp1);
+        var plat2 = new Platform(sp2);
+        
+        plat1.sprite.position(50, 200);
+        plat2.sprite.position(450, 350);
+
+        game.platforms.push(plat1, plat2);
+        
+        //var sb1 = new Sprite('box.png', 50, 45, 0, 0);
+        //var sb2 = new Sprite('box.png', 50, 45, 0, 0);
+        
+        //var box1 = new Box(sb1);
+        //var box2 = new Box(sb2);
+        
+        //box1.sprite.position(70, 155);
+        //box2.sprite.position(500, 355);
+
+        game.player = p;
+        game.start = 0;
+        game.player.sprite.position(150, 535);
+        
+        game.player.sprite.hit(plat2.sprite, function(){
+            var that = this,
+            platform = arguments[0],
+            playerPosition = that.sprite.position(),
+            platformPosition = platform.position(),
+            playerSize = that.sprite.size(),
+            platformSize = platform.size();
+
+            if((playerPosition.y + playerSize.height) === platformPosition.y){
+                if((playerPosition.x+(playerSize.width/2)) < platformPosition.x || ( playerPosition.x+(playerSize.width/2) ) > (platformPosition.x+platformSize.width)){
+                    that.canJump = false;
+                }
+            }
+            else if(playerPosition.y < platformPosition.y){
+                    that.canJump = true;
+                    that.top = 0;
+                    that.sprite.position(playerPosition.x, platformPosition.y - that.sprite.size().height);
+            }            
+        }.bind(game.player, plat2.sprite));
+        
+        game.player.sprite.hit(game.players[0].sprite, function(){
+            var p1 = this,
+            p2 = arguments[0],
+            p1Position = p1.sprite.position(),
+            p2Position = p2.position(),
+            p1Size = p1.sprite.size(),
+            p2Size = p2.size();
+            
+            if(p1Position.y > p2Position.y){
+                if(p1Position.x < (p2Position.x + p2Size.width) || (p1Position.x+p1Size.width) > (p2Position.x)){
+                    p2.position(p2Position.x,(p2Position.y+p2Size.height-5));
+                    p2.size(p2Size.width, 5);
+                }               
+            }
+        }.bind(game.player, game.players[0].sprite));
+    };
+    
+    var KeyManager = (function() {
+        this.keysdown = [];
+        this.addKey = function(e) {
+            this.keysdown.push(e);
+        }
+        this.removeKey = function(e) {
+            rm(e, this.keysdown);
+        }
+        
+        return this;
+    })();
+    
+    var catchKeyUp = function(e) {
+        KeyManager.removeKey(e.keyCode);
+        switch (e.keyCode) {
+            case 37:
+                //left
+                game.player.left = 0;
+                game.player.sprite.speed(0);
+                break;
+            case 38:
+                //up
+                break;
+            case 39:
+                //right
+                game.player.right = 0;
+                game.player.sprite.speed(0);
+                //TODO: BREAKING ANIMATION HERE
+                /*
+                prince.state = BREAK;
+                prince.callback(function(){
+                    if (prince.state === BREAK) {
+                        prince.switchSprite('standing.png', 56, 57, 0, 0);
+                        prince.resize(112, 114);
+                        prince.setCurrentFrame(0);
+                        prince.state = STAND;
+                        
+                    }
+                    prince.sides = 0;
+                }, 1);
+                */
+                break;
+        }
+        e.preventDefault();
+    }
+
+    var catchKeyDown = function(e) {
+        KeyManager.addKey(e.keyCode);
+        switch (e.keyCode) {
+            case 37:
+                //left
+                game.player.left = 4;
+                break;
+            case 38:
+                //up
+                if(game.player.canJump){
+                    game.player.top = 25;
+                    game.player.jumping = true;
+                    game.player.canJump = false;                    
+                }
+                break;
+            case 39:
+                //right
+                game.player.right = 4;;
+                break;
+        }
+        e.preventDefault();
+    }
+    
+    if (document.addEventListener){
+        document.addEventListener("keydown",catchKeyDown,false);
+        document.addEventListener("keyup",catchKeyUp,false);
+    }
+
+
+    var animFrame = window.requestAnimationFrame ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame    ||
+            window.oRequestAnimationFrame      ||
+            window.msRequestAnimationFrame     ||
+            null ;
+    
+    /*
+    if(animFrame !== null){
+        var recursiveAnim = function() {
+            mainloop();
+            animFrame( recursiveAnim );
+        };
+        animFrame( recursiveAnim );
+    } else {
+    */
+        //var ONE_FRAME_TIME = 1000.0 / 60.0;
+        var ONE_FRAME_TIME = 100.0;
+        setInterval( mainloop, ONE_FRAME_TIME );
+    //}    
+</script>    
+</body>
+</html>
+
